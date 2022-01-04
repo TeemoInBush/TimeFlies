@@ -98,12 +98,14 @@ public class Main {
 
     private static void help() {
         System.out.println("quit - 退出\n" +
-                "show - 打印\n" +
-                "rename - 修改当前任务描述\n" +
-                "set - 补充任务，set xxx 12:00-13:00表示任务xxx在12:00开始，13:00结束\n" +
-                "done - 当前任务完成\n" +
-                "任意数字 - 表示切换当前任务\n" +
-                "任意字符串 - 表示新增任务");
+                "show - 打印任务\n" +
+                "rename - 修改任务描述，例如rename a，表示修改当前任务名称为a\n" +
+                "set - 补充任务，set xxx 12:00-13:00表示任务在12:00开始，13:00结束\n" +
+                "       set xxx 12:00表示在12:00新增任务的开始事件\n" +
+                "       set xxx -13:00表示在13:00新增任务的结束事件\n" +
+                "done - 任务完成\n" +
+                "任意数字 - 切换任务\n" +
+                "任意字符串 - 新增任务");
     }
 
     private static void set(String input) {
@@ -143,7 +145,7 @@ public class Main {
                     EVENT_LOG_LIST.add(EventLog.start(next));
                 }
             }
-            EVENT_LOG_LIST.sort(Comparator.comparing(EventLog::getTime).thenComparing(e -> e.getType() == EventType.START ? -1 : 1));
+            EVENT_LOG_LIST.sort(Comparator.comparing(EventLog::getTime).thenComparing(e -> e.getType() == EventType.START ? 1 : -1));
         } catch (Exception e) {
             e.printStackTrace();
         }
