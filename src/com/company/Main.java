@@ -82,6 +82,9 @@ public class Main {
             } else if (input.startsWith("help")) {
                 // help表单打印帮助日志
                 help();
+            } else if (input.startsWith("del")) {
+                // del表示删除
+                del(input);
             }  else {
                 try {
                     // 数字表示移动
@@ -96,10 +99,17 @@ public class Main {
         }
     }
 
+    private static void del(String input) {
+        String eventName = input.replaceFirst("del", "").trim();
+        EVENT_LOG_LIST.removeIf(e -> e.getEventName().equals(eventName));
+        QUEUE.remove(eventName);
+    }
+
     private static void help() {
         System.out.println("quit - 退出\n" +
                 "show - 打印任务\n" +
                 "rename - 修改任务描述，例如rename a，表示修改当前任务名称为a\n" +
+                "del - 删除任务，例如del xxx\n" +
                 "set - 补充任务，set xxx 12:00-13:00表示任务在12:00开始，13:00结束\n" +
                 "       set xxx 12:00表示在12:00新增任务的开始事件\n" +
                 "       set xxx -13:00表示在13:00新增任务的结束事件\n" +
@@ -132,7 +142,7 @@ public class Main {
                 if (QUEUE.isEmpty() && end == null) {
                     EVENT_LOG_LIST.add(EventLog.start(eventName));
                 }
-                if (end == null && !QUEUE.contains(eventName)) {
+                if (end == null && !QUEUE.contains(eventName) && isNotEnd(eventName)) {
                     QUEUE.add(eventName);
                 }
             }
@@ -149,6 +159,15 @@ public class Main {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private static boolean isNotEnd(String eventName) {
+        for (EventLog eventLog : EVENT_LOG_LIST) {
+            if (eventLog.getEventName().equals(eventName) && eventLog.getType() == EventType.END) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static LocalDateTime convertToTime(String time) {
