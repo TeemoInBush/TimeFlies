@@ -129,11 +129,7 @@ public class Main {
             int index = args[1].indexOf("-");
             LocalDateTime start = convertToTime(index == -1 ? args[1] : args[1].substring(0, index));
             LocalDateTime end = convertToTime(index == -1 ? null : args[1].substring(index + 1));
-            if (start == null && end == null) {
-                return;
-            }
-            if (end != null && start != null && !end.isAfter(start)) {
-                System.out.println("结束时间需要晚于开始时间！");
+            if (checkArgs(eventName, start, end)) {
                 return;
             }
             if (start != null) {
@@ -159,6 +155,55 @@ public class Main {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private static boolean checkArgs(String eventName, LocalDateTime start, LocalDateTime end) {
+        if (start == null && end == null) {
+            return true;
+        }
+        if (end != null && start != null && !end.isAfter(start)) {
+            System.out.println("结束时间需要晚于开始时间！");
+            return true;
+        }
+        if (end != null && end.isAfter(LocalDateTime.now())) {
+            System.out.println("结束时间不能晚于当前时间！");
+            return true;
+        }
+        if (start != null && end != null) {
+            for (EventLog eventLog : EVENT_LOG_LIST) {
+                if (eventLog.getTime().isAfter(start) && eventLog.getTime().isBefore(end)) {
+                    System.out.println("开始时间和结束时间中间有其他事件" + eventLog);
+                    return true;
+                }
+            }
+        }
+        if (start == null && end != null) {
+            if (EVENT_LOG_LIST.stream().noneMatch(e -> e.getEventName().equals(eventName))) {
+                System.out.println("任务没有开始过，不能设置结束时间");
+                return true;
+            }
+            for (EventLog eventLog : EVENT_LOG_LIST) {
+                if (eventLog.getEventName().equals(eventName) && eventLog.getTime().isAfter(end)) {
+                    System.out.println("任务的结束时间不能早于开始时间" + eventLog);
+                    return true;
+                }
+            }
+        }
+        if (!isNotEnd(eventName)) {
+            if (end != null) {
+                System.out.println("任务已经结束，不能再添加结束事件");
+                return true;
+            }
+            if (start != null) {
+                for (EventLog eventLog : EVENT_LOG_LIST) {
+                    if (eventLog.getEventName().equals(eventName) && eventLog.getType() == EventType.END && eventLog.getTime().isBefore(start)) {
+                        System.out.println("任务已经在" + eventLog.getTime() + "结束，不能在结束时间后添加开始事件。");
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean isNotEnd(String eventName) {
@@ -301,6 +346,7 @@ public class Main {
     private static void printAggs(Set<String> doneEvents) {
         AtomicInteger i = new AtomicInteger(0);
         AGGS.entrySet().stream()
+                .filter(e -> !e.getKey().equals(QUIT_EVENT))
                 .sorted(Comparator.comparingLong(e -> (!doneEvents.contains(e.getKey()) ? 1000000000 : 0 ) + e.getValue().longValue()))
                 .forEach(
                 entry -> {
