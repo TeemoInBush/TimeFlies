@@ -27,10 +27,11 @@ import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.company.pojo.EventLog.QUIT_EVENT;
+
 public class Main {
 
     public static final String LINE = "--------------------";
-    public static final String QUIT_EVENT = "QUIT";
     private static ArrayList<String> QUEUE;
     private static List<EventLog> EVENT_LOG_LIST;
     private static final String EVENT_LOG_LIST_FILE = "event_log_list_" + LocalDate.now() + ".data";
@@ -113,6 +114,7 @@ public class Main {
                 "set - 补充任务，set xxx 12:00-13:00表示任务在12:00开始，13:00结束\n" +
                 "       set xxx 12:00表示在12:00新增任务的开始事件\n" +
                 "       set xxx -13:00表示在13:00新增任务的结束事件\n" +
+                "       set xxx 220106T22:00-220106T2201新增跨天的任务\n" +
                 "done - 任务完成\n" +
                 "任意数字 - 切换任务\n" +
                 "任意字符串 - 新增任务");
@@ -126,20 +128,23 @@ public class Main {
         }
         try {
             String eventName = args[0];
-            int index = args[1].indexOf("-");
-            LocalDateTime start = convertToTime(index == -1 ? args[1] : args[1].substring(0, index));
-            LocalDateTime end = convertToTime(index == -1 ? null : args[1].substring(index + 1));
+            String timeStr = input.replaceFirst("set", "").replaceFirst(eventName, "").trim();
+            int index = timeStr.indexOf("-");
+            LocalDateTime start = convertToTime(index == -1 ? timeStr : timeStr.substring(0, index));
+            LocalDateTime end = convertToTime(index == -1 ? null : timeStr.substring(index + 1));
             if (checkArgs(eventName, start, end)) {
                 return;
             }
             if (start != null) {
                 // 任务开始
                 EVENT_LOG_LIST.add(new EventLog(eventName, EventType.START, start));
-                if (QUEUE.isEmpty() && end == null) {
-                    EVENT_LOG_LIST.add(EventLog.start(eventName));
-                }
-                if (end == null && !QUEUE.contains(eventName) && isNotEnd(eventName)) {
-                    QUEUE.add(eventName);
+                if (isNotEnd(eventName) && end == null) {
+                    if (QUEUE.isEmpty()) {
+                        EVENT_LOG_LIST.add(EventLog.start(eventName));
+                    }
+                    if (!QUEUE.contains(eventName)) {
+                        QUEUE.add(eventName);
+                    }
                 }
             }
             if (end != null) {
@@ -219,10 +224,17 @@ public class Main {
         if (time == null || time.trim().length() == 0) {
             return null;
         }
-        String[] times = time.trim().split(":");
-        int hour = Integer.parseInt(times[0]);
-        int minutes = Integer.parseInt(times[1]);
-        return LocalDateTime.of(LocalDate.now(), LocalTime.of(hour, minutes));
+        if (time.length() == 5) {
+            String[] times = time.trim().split(":");
+            int hour = Integer.parseInt(times[0]);
+            int minutes = Integer.parseInt(times[1]);
+            return LocalDateTime.of(LocalDate.now(), LocalTime.of(hour, minutes));
+        }
+        if (time.length() == 12) {
+            return LocalDateTime.parse(time.replace("T", " "), DateTimeFormatter.ofPattern("yyMMdd HH:mm"));
+        }
+        System.err.println("time format error " + time);
+        return null;
     }
 
     private static void rename(String input) {
@@ -249,23 +261,20 @@ public class Main {
     }
 
     private static void beforeQuit() {
-        EVENT_LOG_LIST.removeIf(e -> e.getEventName().equals(QUIT_EVENT));
-        if (!EVENT_LOG_LIST.isEmpty() && !QUIT_EVENT.equals(EVENT_LOG_LIST.get(EVENT_LOG_LIST.size() - 1).getEventName())) {
-            EVENT_LOG_LIST.add(EventLog.start(QUIT_EVENT));
-        }
+        EVENT_LOG_LIST.removeIf(EventLog::isQuit);
+        EVENT_LOG_LIST.add(EventLog.quit());
     }
 
     private static void show(String input) {
         String date = input.replace("show", "").trim();
         if (date.isEmpty()) {
-            printEventLog();
+            printEventLog(EVENT_LOG_LIST);
             return;
         }
         LocalDate localDate = LocalDate.parse(date, DateTimeFormatter.ofPattern("yyMMdd"));
         try {
-            EVENT_LOG_LIST = readObject("event_log_list_" + localDate + ".data");
-            printEventLog();
-            EVENT_LOG_LIST = readObject(EVENT_LOG_LIST_FILE);
+            List<EventLog> eventLogs = readObject("event_log_list_" + localDate + ".data");
+            printEventLog(eventLogs);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -303,8 +312,8 @@ public class Main {
         System.out.println(LINE);
     }
 
-    private static void printEventLog() {
-        if (EVENT_LOG_LIST.isEmpty()) {
+    private static void printEventLog(List<EventLog> eventLogs) {
+        if (eventLogs.isEmpty()) {
             System.out.println("empty");
             return;
         }
@@ -312,8 +321,8 @@ public class Main {
         EventLog lastLog = null;
         AGGS.clear();
         Set<String> doneEvents = new HashSet<>();
-        for (int i = 0; i < EVENT_LOG_LIST.size(); i++) {
-            EventLog eventLog = EVENT_LOG_LIST.get(i);
+        for (int i = 0; i < eventLogs.size(); i++) {
+            EventLog eventLog = eventLogs.get(i);
             if (!isSame(lastLog, eventLog)) {
                 System.out.print(isSameTime(lastLog, eventLog) ? eventLog.print() : "\n" + eventLog);
             }
@@ -325,7 +334,7 @@ public class Main {
             }
             lastLog = eventLog;
         }
-        if (lastLog != null && !QUIT_EVENT.equals(lastLog.getEventName())) {
+        if (lastLog != null && !lastLog.isQuit()) {
             addToAggs(EventLog.end(lastLog.getEventName()), lastLog);
         }
         System.out.println("\n" + LINE);
@@ -394,6 +403,8 @@ public class Main {
     private static <T> void writeObject(T object, String fileName) throws IOException {
         try (ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(ROOT_PATH + fileName))) {
             outputStream.writeObject(object);
+        } catch (Exception e) {
+            System.out.println("write file failed" + e);
         }
     }
 
@@ -402,6 +413,7 @@ public class Main {
         TIMER.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
+                beforeQuit();
                 saveToFile();
             }
         }, 2000L, 2000L);

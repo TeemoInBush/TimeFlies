@@ -22,6 +22,8 @@ import java.time.format.DateTimeFormatter;
  **/
 public class EventLog implements Serializable {
 
+    public static final String QUIT_EVENT = "QUIT";
+
     private static final long serialVersionUID = 1;
 
     private LocalDateTime time;
@@ -87,9 +89,21 @@ public class EventLog implements Serializable {
         return event;
     }
 
+    public boolean isQuit() {
+        return this.getEventName().equals(QUIT_EVENT);
+    }
+
+    public static EventLog quit() {
+        return start(QUIT_EVENT);
+    }
+
     @Override
     public String toString() {
-        return "[" + format(time) + "] " + type + " " + eventName;
+        if (isQuit()) {
+            return "[" + format(time) + "] " + "--";
+        } else {
+            return "[" + format(time) + "] " + type + " " + eventName;
+        }
     }
 
     public String format(LocalDateTime time) {
@@ -97,6 +111,10 @@ public class EventLog implements Serializable {
     }
 
     public String print() {
-        return " | " + type + " " + eventName;
+        if (isQuit()) {
+            return " | " + eventName;
+        } else {
+            return " | " + type + " " + eventName;
+        }
     }
 }
