@@ -383,7 +383,7 @@ public class Main {
     }
 
     private static long getTotalCost() {
-        return Duration.between(EVENT_LOG_LIST.get(0).getTime(), LocalDateTime.now()).getSeconds();
+        return Duration.between(EVENT_LOG_LIST.get(0).getTime(), EVENT_LOG_LIST.get(EVENT_LOG_LIST.size() - 1).getTime()).getSeconds();
     }
 
     private static void addToAggs(EventLog eventLog, EventLog lastLog) {
