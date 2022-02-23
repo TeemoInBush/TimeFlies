@@ -36,7 +36,6 @@ public class Main {
     private static List<EventLog> EVENT_LOG_LIST;
     private static final String EVENT_LOG_LIST_FILE = "event_log_list_" + LocalDate.now() + ".data";
     private static final String QUEUE_FILE = "queue_" + LocalDate.now() + ".data";
-    private static final Map<String, AtomicLong> AGGS = new HashMap<>();
     private static final Timer TIMER = new Timer();
     public static String ROOT_PATH = "";
 
@@ -319,7 +318,7 @@ public class Main {
         }
         System.out.println(LINE);
         EventLog lastLog = null;
-        AGGS.clear();
+        Map<String, AtomicLong> aggs = new HashMap<>();
         Set<String> doneEvents = new HashSet<>();
         for (int i = 0; i < eventLogs.size(); i++) {
             EventLog eventLog = eventLogs.get(i);
@@ -327,7 +326,7 @@ public class Main {
                 System.out.print(isSameTime(lastLog, eventLog) ? eventLog.print() : "\n" + eventLog);
             }
             if (lastLog != null && !doneEvents.contains(lastLog.getEventName())) {
-                addToAggs(eventLog, lastLog);
+                addToAggs(eventLog, lastLog, aggs);
             }
             if (eventLog.getType() == EventType.END) {
                 doneEvents.add(eventLog.getEventName());
@@ -335,11 +334,11 @@ public class Main {
             lastLog = eventLog;
         }
         if (lastLog != null && !lastLog.isQuit()) {
-            addToAggs(EventLog.end(lastLog.getEventName()), lastLog);
+            addToAggs(null, lastLog, aggs);
         }
         System.out.println("\n" + LINE);
-        printAggs(doneEvents);
-        System.out.println("total: " + printTime(getTotalCost()));
+        printAggs(doneEvents, eventLogs, aggs);
+        System.out.println("total: " + printTime(getTotalCost(eventLogs)));
         System.out.println(LINE);
     }
 
@@ -352,9 +351,9 @@ public class Main {
                 && lastLog.getEventName().equals(eventLog.getEventName());
     }
 
-    private static void printAggs(Set<String> doneEvents) {
+    private static void printAggs(Set<String> doneEvents, List<EventLog> eventLogs, Map<String, AtomicLong> aggs) {
         AtomicInteger i = new AtomicInteger(0);
-        AGGS.entrySet().stream()
+        aggs.entrySet().stream()
                 .filter(e -> !e.getKey().equals(QUIT_EVENT))
                 .sorted(Comparator.comparingLong(e -> (!doneEvents.contains(e.getKey()) ? 1000000000 : 0 ) + e.getValue().longValue()))
                 .forEach(
@@ -363,13 +362,13 @@ public class Main {
                     String name = entry.getKey();
                     long time = entry.getValue().longValue();
                     name = (doneEvents.contains(name) ? " " : "+") + name;
-                    System.out.println("[" + i + "] \t" + printTime(time) + "\t" + getPercent(time) + "\t" + name);
+                    System.out.println("[" + i + "] \t" + printTime(time) + "\t" + getPercent(time, eventLogs) + "\t" + name);
                 }
         );
     }
 
-    private static String getPercent(long time) {
-        return String.format("%.1f", time * 100f / getTotalCost()) + "%";
+    private static String getPercent(long time, List<EventLog> eventLogs) {
+        return String.format("%.1f", time * 100f / getTotalCost(eventLogs)) + "%";
     }
 
     private static String printTime(long time) {
@@ -382,14 +381,18 @@ public class Main {
         }
     }
 
-    private static long getTotalCost() {
-        return Duration.between(EVENT_LOG_LIST.get(0).getTime(), EVENT_LOG_LIST.get(EVENT_LOG_LIST.size() - 1).getTime()).getSeconds();
+    private static long getTotalCost(List<EventLog> eventLogs) {
+        return Duration.between(eventLogs.get(0).getTime(), eventLogs.get(eventLogs.size() - 1).getTime()).getSeconds();
     }
 
-    private static void addToAggs(EventLog eventLog, EventLog lastLog) {
+    private static void addToAggs(EventLog eventLog, EventLog lastLog, Map<String, AtomicLong> aggs) {
         if (lastLog != null && lastLog.getType() == EventType.START) {
-            Duration duration = Duration.between(lastLog.getTime(), eventLog.getTime());
-            AGGS.computeIfAbsent(lastLog.getEventName(), k -> new AtomicLong()).addAndGet(duration.getSeconds());
+            if (eventLog == null) {
+                aggs.computeIfAbsent(lastLog.getEventName(), k -> new AtomicLong()).addAndGet(0);
+            } else {
+                Duration duration = Duration.between(lastLog.getTime(), eventLog.getTime());
+                aggs.computeIfAbsent(lastLog.getEventName(), k -> new AtomicLong()).addAndGet(duration.getSeconds());
+            }
         }
     }
 
