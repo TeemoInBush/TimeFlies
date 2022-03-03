@@ -120,14 +120,19 @@ public class Main {
     }
 
     private static void set(String input) {
-        String[] args = input.replaceFirst("set", "").trim().split("\\s");
+        input = input.replaceFirst("set", "").trim();
+        String[] args = input.split("\\s");
         if (args.length < 2) {
             System.out.println("格式错误，应该输入set xxx start-end / set xxx start / set xxx -end");
             return;
         }
         try {
-            String eventName = args[0];
-            String timeStr = input.replaceFirst("set", "").replaceFirst(eventName, "").trim();
+            String eventName = args[0].trim();
+            if (eventName.startsWith("\"")) {
+                int start = input.indexOf("\"");
+                eventName = input.substring(start + 1, input.indexOf("\"", start + 1));
+            }
+            String timeStr = input.replace(eventName, "").replace("\"", "").trim();
             int index = timeStr.indexOf("-");
             LocalDateTime start = convertToTime(index == -1 ? timeStr : timeStr.substring(0, index));
             LocalDateTime end = convertToTime(index == -1 ? null : timeStr.substring(index + 1));
@@ -138,12 +143,11 @@ public class Main {
                 // 任务开始
                 EVENT_LOG_LIST.add(new EventLog(eventName, EventType.START, start));
                 if (isNotEnd(eventName) && end == null) {
-                    if (QUEUE.isEmpty()) {
-                        EVENT_LOG_LIST.add(EventLog.start(eventName));
-                    }
                     if (!QUEUE.contains(eventName)) {
                         QUEUE.add(eventName);
                     }
+                    // 选中这个任务
+                    moveEvent(QUEUE.indexOf(eventName));
                 }
             }
             if (end != null) {
