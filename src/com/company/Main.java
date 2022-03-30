@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.Timer;
@@ -155,8 +156,11 @@ public class Main {
                 QUEUE.remove(eventName);
                 EVENT_LOG_LIST.add(new EventLog(eventName, EventType.END, end));
                 if (!QUEUE.isEmpty()) {
-                    String next = QUEUE.get(0);
-                    EVENT_LOG_LIST.add(EventLog.start(next));
+                    String current = QUEUE.get(0);
+                    Optional<EventLog> max = EVENT_LOG_LIST.stream().filter(e -> !e.isQuit()).max(Comparator.comparing(EventLog::getTime));
+                    if (max.isPresent() && !max.get().getEventName().equals(current)) {
+                        EVENT_LOG_LIST.add(new EventLog(current, EventType.START, max.get().getTime().plusSeconds(1)));
+                    }
                 }
             }
             EVENT_LOG_LIST.sort(Comparator.comparing(EventLog::getTime).thenComparing(e -> e.getType() == EventType.START ? 1 : -1));
