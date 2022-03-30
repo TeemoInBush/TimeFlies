@@ -148,7 +148,7 @@ public class Main {
                         QUEUE.add(eventName);
                     }
                     // 选中这个任务
-                    moveEvent(QUEUE.indexOf(eventName));
+//                    moveEvent(QUEUE.indexOf(eventName));
                 }
             }
             if (end != null) {
